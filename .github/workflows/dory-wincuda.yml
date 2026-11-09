@@ -1,0 +1,70 @@
+name: dory-wincuda
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: win-cuda-13.5-x64-sm86 (dory 98a74c9)
+    runs-on: windows-2022
+    steps:
+      - name: Clone (dory-support branch)
+        uses: actions/checkout@v6
+        with:
+          ref: dory-support
+          fetch-depth: 1
+
+      - name: Pin NVIDIA reference revision 98a74c97
+        run: |
+          git fetch --depth 1 origin 98a74c97ea09ac72f6ceda1559808fc0a2f447ce
+          git checkout --detach FETCH_HEAD
+          git rev-parse HEAD
+
+      - name: Install CUDA Toolkit 13.5
+        uses: ./.github/actions/windows-setup-cuda
+        with:
+          cuda_version: '13.5'
+          cuda_arch: x64
+
+      - name: Install Ninja
+        run: choco install ninja
+        shell: pwsh
+
+      - name: Build llama-server (CUDA sm86 only)
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          cmake -S . -B build -G "Ninja Multi-Config" ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DGGML_BACKEND_DL=ON ^
+            -DGGML_NATIVE=OFF ^
+            -DGGML_CPU=OFF ^
+            -DGGML_CUDA=ON ^
+            -DCMAKE_CUDA_ARCHITECTURES=86 ^
+            -DLLAMA_BUILD_BORINGSSL=ON ^
+            -DLLAMA_BUILD_TESTS=OFF ^
+            -DLLAMA_BUILD_EXAMPLES=OFF ^
+            -DLLAMA_BUILD_APP=OFF ^
+            -DLLAMA_BUILD_SERVER=ON
+          set /A NINJA_JOBS=%NUMBER_OF_PROCESSORS%-1
+          cmake --build build --config Release -j %NINJA_JOBS% --target llama-server
+
+      - name: Verify + pack self-contained zip
+        shell: pwsh
+        run: |
+          $bin = "build/bin/Release"
+          & "$bin/llama-server.exe" --version
+          $hit = Select-String -Path "$bin/*.dll" -Pattern "dory" -SimpleMatch -Quiet
+          Write-Host "dory-string-in-dlls: $hit"
+          robocopy "${{env.CUDA_PATH}}/bin" "$bin" cudart64_*.dll cublas64_*.dll cublasLt64_*.dll
+          7z a -snl dory-llama-bin-win-cuda-13.5-x64-sm86.zip ".\build\bin\Release\*"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: dory-llama-bin-win-cuda-13.5-x64-sm86
+          path: dory-llama-bin-win-cuda-13.5-x64-sm86.zip
+          archive: false
