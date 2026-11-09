@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   build:
-    name: win-cuda-13.5-x64-sm86 (dory 98a74c9)
+    name: win-cuda-12.4-x64-sm86 (dory 98a74c9)
     runs-on: windows-2022
     steps:
       - name: Clone (dory-support branch)
@@ -23,10 +23,10 @@ jobs:
           git checkout --detach FETCH_HEAD
           git rev-parse HEAD
 
-      - name: Install CUDA Toolkit 13.5
+      - name: Install CUDA Toolkit 12.4
         uses: ./.github/actions/windows-setup-cuda
         with:
-          cuda_version: '13.5'
+          cuda_version: '12.4'
           cuda_arch: x64
 
       - name: Install Ninja
@@ -49,6 +49,7 @@ jobs:
             -DLLAMA_BUILD_EXAMPLES=OFF ^
             -DLLAMA_BUILD_APP=OFF ^
             -DLLAMA_BUILD_SERVER=ON
+            -DGGML_CUDA_CCCL_VERSION=v3.4.3
           set /A NINJA_JOBS=%NUMBER_OF_PROCESSORS%-1
           cmake --build build --config Release -j %NINJA_JOBS% --target llama-server
 
@@ -60,11 +61,11 @@ jobs:
           $hit = Select-String -Path "$bin/*.dll" -Pattern "dory" -SimpleMatch -Quiet
           Write-Host "dory-string-in-dlls: $hit"
           robocopy "${{env.CUDA_PATH}}/bin" "$bin" cudart64_*.dll cublas64_*.dll cublasLt64_*.dll
-          7z a -snl dory-llama-bin-win-cuda-13.5-x64-sm86.zip ".\build\bin\Release\*"
+          7z a -snl dory-llama-bin-win-cuda-12.4-x64-sm86.zip ".\build\bin\Release\*"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: dory-llama-bin-win-cuda-13.5-x64-sm86
-          path: dory-llama-bin-win-cuda-13.5-x64-sm86.zip
+          name: dory-llama-bin-win-cuda-12.4-x64-sm86
+          path: dory-llama-bin-win-cuda-12.4-x64-sm86.zip
           archive: false
